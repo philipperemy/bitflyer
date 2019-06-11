@@ -9,6 +9,8 @@ pip install bitflyer-rt
 
 ## Tickers
 
+Available channels:
+
 - lightning_ticker_BTC_JPY
 - lightning_ticker_FX_BTC_JPY
 - lightning_ticker_ETH_BTC
