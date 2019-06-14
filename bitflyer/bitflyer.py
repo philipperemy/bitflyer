@@ -90,6 +90,10 @@ class BitflyerRestAPI(pybitflyer.API):
     def __init__(self, credentials={}, timeout=None):
         super().__init__(credentials['apiKey'], credentials['secret'], timeout)
 
+    def _wrap_new_order(self, resp):
+        resp['id'] = resp['child_order_acceptance_id']
+        return resp
+
     def create_limit_buy_order(self, ticker, quantity, price, params={}):
         return self._create_limit_order(ticker, quantity, price, 'BUY', params)
 
@@ -111,19 +115,19 @@ class BitflyerRestAPI(pybitflyer.API):
     def _create_limit_order(self, ticker, quantity, price, side, params={}):
         time_in_force = params['time_in_force'] if 'time_in_force' in params else None
         minute_to_expire = params['minute_to_expire'] if 'minute_to_expire' in params else None
-        return self.sendchildorder(product_code=ticker,
-                                   child_order_type='LIMIT',
-                                   price=price,
-                                   side=side,
-                                   size=quantity,
-                                   minute_to_expire=minute_to_expire,
-                                   time_in_force=time_in_force)
+        return self._wrap_new_order(self.sendchildorder(product_code=ticker,
+                                                        child_order_type='LIMIT',
+                                                        price=price,
+                                                        side=side,
+                                                        size=quantity,
+                                                        minute_to_expire=minute_to_expire,
+                                                        time_in_force=time_in_force))
 
     def _create_market_order(self, ticker, quantity, side, params={}):
-        return self.sendchildorder(product_code=ticker,
-                                   child_order_type='MARKET',
-                                   side=side,
-                                   size=quantity)
+        return self._wrap_new_order(self.sendchildorder(product_code=ticker,
+                                                        child_order_type='MARKET',
+                                                        side=side,
+                                                        size=quantity))
 
     def fetch_order_status(self, order_id, symbol):
         order = self.fetch_order(order_id, symbol)
