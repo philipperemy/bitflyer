@@ -140,3 +140,14 @@ class BitflyerRestAPI(pybitflyer.API):
         assert len(order) == 1
         order = order[0]
         return order['child_order_state']
+
+    def get_positions(self):
+        # self.getpositions() => buggy.
+        positions = self.request('/v1/me/getpositions', params={'product_code': 'FX_BTC_JPY'})
+        position_quantity = 0.0
+        for position in positions:
+            if position['side'] == 'BUY':
+                position_quantity += position['size']
+            else:
+                position_quantity -= position['size']
+        return position_quantity
