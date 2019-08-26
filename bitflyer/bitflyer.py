@@ -115,19 +115,27 @@ class BitflyerRestAPI(pybitflyer.API):
     def _create_limit_order(self, ticker, quantity, price, side, params={}):
         time_in_force = params['time_in_force'] if 'time_in_force' in params else None
         minute_to_expire = params['minute_to_expire'] if 'minute_to_expire' in params else None
-        return self._wrap_new_order(self.sendchildorder(product_code=ticker,
-                                                        child_order_type='LIMIT',
-                                                        price=price,
-                                                        side=side,
-                                                        size=quantity,
-                                                        minute_to_expire=minute_to_expire,
-                                                        time_in_force=time_in_force))
+        resp = self.sendchildorder(product_code=ticker,
+                                   child_order_type='LIMIT',
+                                   price=price,
+                                   side=side,
+                                   size=quantity,
+                                   minute_to_expire=minute_to_expire,
+                                   time_in_force=time_in_force)
+        try:
+            return self._wrap_new_order(resp)
+        except Exception:
+            return resp
 
     def _create_market_order(self, ticker, quantity, side, params={}):
-        return self._wrap_new_order(self.sendchildorder(product_code=ticker,
-                                                        child_order_type='MARKET',
-                                                        side=side,
-                                                        size=quantity))
+        resp = self.sendchildorder(product_code=ticker,
+                                   child_order_type='MARKET',
+                                   side=side,
+                                   size=quantity)
+        try:
+            return self._wrap_new_order(resp)
+        except Exception:
+            return resp
 
     def fetch_order_status(self, order_id, symbol):
         order = self.fetch_order(order_id, symbol)
