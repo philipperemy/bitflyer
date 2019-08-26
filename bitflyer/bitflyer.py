@@ -137,7 +137,7 @@ class BitflyerRestAPI(pybitflyer.API):
         except Exception:
             return resp
 
-    def fetch_order_status(self, order_id, symbol):
+    def fetch_order_status(self, order_id, symbol):  # does not handle partial fills.
         order = self.fetch_order(order_id, symbol)
         if len(order) == 0:  # either executed or canceled.
             trades = self.getexecutions(product_code=symbol, child_order_acceptance_id=order_id)
@@ -148,6 +148,26 @@ class BitflyerRestAPI(pybitflyer.API):
         assert len(order) == 1
         order = order[0]
         return order['child_order_state']
+
+    def fetch_executed_size(self, order_id, symbol):
+        trades = self.getexecutions(product_code=symbol, child_order_acceptance_id=order_id)
+        executed_size = 0.0
+        for trade in trades:
+            executed_size += float(trade['size'])
+        return executed_size
+
+    def fetch_executed_quantity_and_average_price(self, order_id, symbol):
+        trades = self.getexecutions(product_code=symbol, child_order_acceptance_id=order_id)
+        average_price = 0
+        total_size = 0
+        for trade in trades:
+            average_price += trade['size'] * trade['price']
+            total_size += trade['size']
+        if total_size == 0:
+            return 0, 0
+        else:
+            average_price /= total_size
+            return total_size, average_price
 
     def get_positions(self):
         # self.getpositions() => buggy.
