@@ -1,0 +1,128 @@
+import _queue
+import json
+import logging
+import sys
+from datetime import datetime
+from logging import getLogger
+from queue import Queue
+from threading import Thread, Condition, Lock
+from time import sleep
+
+import websocket
+
+from bitflyer.consolidate_ob import apply_updates
+
+logger = getLogger(__name__)
+
+
+class FastTicker:
+
+    def __init__(self):
+        self.channel_snapshot = 'lightning_board_snapshot_FX_BTC_JPY'
+        self.channel_updates = 'lightning_board_FX_BTC_JPY'
+        self.queue = Queue()
+
+        self.snapshot = RealtimeAPI(channel=self.channel_snapshot, message_queue=self.queue)
+        self.snapshot.run_no_wait()
+
+        self.updates = RealtimeAPI(channel=self.channel_updates, message_queue=self.queue)
+        self.updates.run_no_wait()
+
+        self.thread = Thread(target=self.track_ticker)
+        self.thread.start()
+        self.bbo = None, None
+        self.bbo_queue = Queue()
+
+    def track_ticker(self):
+        order_book = None
+        while True:
+            message = self.queue.get()
+            channel = message['params']['channel']
+            if channel == 'lightning_board_snapshot_FX_BTC_JPY':
+                order_book = message['params']['message']  # refresh.
+            elif channel == 'lightning_board_FX_BTC_JPY':
+                if order_book is not None:  # that would mean we received an updated before the snapshot.
+                    order_book = apply_updates(order_book, [message['params']['message']])
+            if order_book is not None:
+                new_bbo = order_book['bids'][0]['price'], order_book['asks'][0]['price']
+                if new_bbo != self.bbo:
+                    self.bbo = new_bbo
+                    self.bbo_queue.put(self.bbo)
+                    logger.info(f'BID: {self.bbo[0]}, ASK: {self.bbo[1]}')
+
+    def get_bbo(self, block=True):
+        if block:
+            return self.bbo_queue.get(block=True)
+        else:
+            while self.bbo == (None, None):
+                sleep(0.001)
+            return self.bbo
+
+
+
+class RealtimeAPI:
+
+    def __init__(self, channel, message_queue: Queue):
+        self.url = 'wss://ws.lightstream.bitflyer.com/json-rpc'
+        self.channel = channel
+        self.message_queue = message_queue
+        self.ws = websocket.WebSocketApp(self.url, header=None, on_open=self.on_open,
+                                         on_message=self.on_message, on_error=self.on_error,
+                                         on_close=self.on_close)
+        self.thread = Thread(name=channel, target=self.run)
+
+    def run_no_wait(self):
+        self.thread.start()
+
+    def join(self):
+        self.thread.join()
+
+    def run(self):
+        self.ws.run_forever()
+        logger.debug('Web Socket process ended.')
+
+    # when we get message
+    def on_message(self, ws, message):
+        j = json.loads(message)
+        j['jst_time'] = str(datetime.now())
+        logger.debug(j)
+        self.message_queue.put(j)
+
+    # when error occurs
+    def on_error(self, ws, error):
+        logger.error(error)
+
+    # when websocket closed.
+    def on_close(self, ws):
+        logger.debug('disconnected streaming server')
+
+    # when websocket opened.
+    def on_open(self, ws):
+        logger.debug('connected streaming server')
+        output_json = json.dumps(
+            {
+                'method': 'subscribe',
+                'params': {
+                    'channel': self.channel
+                }
+            }
+        )
+        ws.send(output_json)
+
+
+def build_ticker(queue: Queue):
+    order_book = None
+    bbo = None, None
+    while True:
+        message = queue.get()
+        channel = message['params']['channel']
+        if channel == 'lightning_board_snapshot_FX_BTC_JPY':
+            order_book = message['params']['message']  # refresh.
+        elif channel == 'lightning_board_FX_BTC_JPY':
+            if order_book is not None:  # that would mean we received an updated before the snapshot.
+                order_book = apply_updates(order_book, [message['params']['message']])
+        if order_book is not None:
+            new_bbo = order_book['bids'][0]['price'], order_book['asks'][0]['price']
+            if new_bbo != bbo:
+                bbo = new_bbo
+

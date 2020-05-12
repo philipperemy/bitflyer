@@ -2,6 +2,7 @@ import json
 import threading
 import time
 from datetime import datetime
+from queue import Queue
 
 import pybitflyer
 import websocket
@@ -16,21 +17,22 @@ class BitflyerRealtimeAPI:
         self._url = 'wss://ws.lightstream.bitflyer.com/json-rpc'
         self._channel = channel
         self._debug = debug
+        self._queue = Queue()
         self._ws = websocket.WebSocketApp(self._url,
                                           header=None,
                                           on_open=self._on_open,
                                           on_message=self._on_message,
                                           on_error=self._on_error,
                                           on_close=self._on_close)
-        self._ticker = None
+        self._last_msg = None
         self._best_bid = None
         self._best_ask = None
         self._best_bid_size = None
         self._best_ask_size = None
         self._thread = threading.Thread(target=self._run)
 
-    def get_ticker(self):
-        return self._ticker
+    def get_last_msg(self):
+        return self._last_msg
 
     def get_best_bid(self):
         return self._best_bid
@@ -48,10 +50,13 @@ class BitflyerRealtimeAPI:
         if self._debug:
             print(f'Connecting...')
         self._thread.start()
-        while self._ticker is None:
+        while self._last_msg is None:
             time.sleep(0.01)
         if self._debug:
             print('Connected... OK')
+
+    def get(self, block=True, timeout=None):
+        return self._queue.get(block, timeout)
 
     def _run(self):
         self._ws.run_forever()
@@ -59,12 +64,25 @@ class BitflyerRealtimeAPI:
     def _on_message(self, ws, message):
         j = json.loads(message)
         j['jst_time'] = str(datetime.now())
+        self._last_msg = j
+        self._queue.put(j)
+        c = j['params']['channel']
         m = j['params']['message']
-        self._best_bid = m['best_bid']
-        self._best_bid_size = m['best_bid_size']
-        self._best_ask = m['best_ask']
-        self._best_ask_size = m['best_ask_size']
-        self._ticker = j
+        if c.startswith('lightning_ticker_'):
+            self._best_bid = m['best_bid']
+            self._best_bid_size = m['best_bid_size']
+            self._best_ask = m['best_ask']
+            self._best_ask_size = m['best_ask_size']
+        elif c.startswith('lightning_board_snapshot'):
+            print('update')
+            self.bids = m['bids']
+            self.asks = m['asks']
+            self._best_bid = self.bids[0]['price']
+            self._best_ask = self.asks[0]['price']
+            self._best_bid_size = self.bids[0]['size']
+            self._best_ask_size = self.asks[0]['size']
+        else:
+            print('Unknown %s' % message)
 
     def _on_error(self, ws, error):
         if self._debug:
