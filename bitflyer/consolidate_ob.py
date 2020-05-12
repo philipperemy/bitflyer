@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 def apply_updates(order_book, updates):
     def single_update(ob, update, side):
-        logger.debug('UPDATE:', update, side)
+        logger.debug(f'UPDATE: {update}, {side}')
         for ob_entry in ob[side]:
             if ob_entry['price'] == update['price']:
                 ob_entry['size'] = update['size']
@@ -36,7 +36,6 @@ def apply_updates(order_book, updates):
 
     snap_u = dict(order_book)
     for u in updates:
-
         try:
             bids = u['params']['message']['bids']
         except:
