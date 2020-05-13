@@ -34,11 +34,13 @@ class OrderBook:
         self.bid_order_book = SortedDict()
         self.ask_order_book = SortedDict()
         self.snapshot_received = False
-        self.mid_price_cond = deque(maxlen=1000)
-        self.bid_ask_cond = deque(maxlen=1000)
+        self.cond_history = 1000
+        self.mid_price_cond = deque(maxlen=self.cond_history)
+        self.bid_ask_cond = deque(maxlen=self.cond_history)
         self.best_adjusted_bid = None
         self.best_adjusted_ask = None
         self.mid_price = None
+        self.qos = 1.0  # 1.0: perfect synchronised stream, <0.9 degraded stream.
         self.ups = NumUpdatesPerSeconds()
 
     @property
@@ -122,10 +124,8 @@ class OrderBook:
             self.best_adjusted_ask = update["mid_price"] + 1
         assert self.best_bid < self.best_ask
         assert self.best_bid <= update["mid_price"] <= self.best_ask
-        if len(self.mid_price_cond) >= 1000:
-            print(np.mean(self.bid_ask_cond), np.mean(self.mid_price_cond))
-            assert np.mean(self.bid_ask_cond) > 0.5
-            assert np.mean(self.mid_price_cond) > 0.5
+        if len(self.mid_price_cond) == self.cond_history:
+            self.qos = (0.5 * np.mean(self.bid_ask_cond) + 0.5 * np.mean(self.mid_price_cond))
 
 
 if __name__ == '__main__':

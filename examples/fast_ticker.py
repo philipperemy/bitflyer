@@ -7,7 +7,8 @@ from bitflyer.ticker_from_order_book import FastTicker
 
 def main():
     logging.basicConfig(format='%(asctime)12s - %(levelname)s - %(message)s', level=logging.INFO, stream=sys.stdout)
-    FastTicker()
+    ft = FastTicker()
+    # ft.get_bbo()
     sleep(10000000)
 
 
