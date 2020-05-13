@@ -9,8 +9,17 @@ from queue import Queue
 from secrets import token_hex
 from threading import Thread
 
+import iso8601 as iso8601
 import pybitflyer
 import websocket
+
+
+class OrderFailed(Exception):
+    pass
+
+
+class CancelFailed(Exception):
+    pass
 
 
 class OrderStatusBook:
@@ -18,19 +27,62 @@ class OrderStatusBook:
     def __init__(self, key, secret):
         self.private = PrivateRealtimeAPI(key, secret)
         self.private.start_and_wait_for_stream()
-        self.thread = Thread(target=self.listen_to_order_status)
+        self.thread = Thread(target=self.run_forever)
         self.thread.start()
         print('OrderStatusBook - feed ready.')
         self.order_status_by_parent_order_id = defaultdict(list)
+        self.lock = Queue()
 
-    def listen_to_order_status(self):
+    def wait_for_new_msg(self):
+        return self.lock.get()
+
+    def fetch_order_status(self, order_id):
+        if order_id not in self.order_status_by_parent_order_id:
+            return None
+        messages = self.order_status_by_parent_order_id[order_id]
+        sorted_messages = sorted(messages, key=lambda tup: iso8601.parse_date(tup['event_date']))
+        executed_quantity = 0
+        executed_value = 0
+        order_status = None
+        order_quantity = None
+        # https://bf-lightning-api.readme.io/docs/realtime-child-order-events
+        for message in sorted_messages:
+            et = message['event_type']
+            if et == 'ORDER':  # new order.
+                order_quantity = message['size']
+                order_status = 'open'
+            elif et == 'ORDER_FAILED':
+                raise OrderFailed(sorted_messages)
+            elif et == 'CANCEL':
+                order_status = 'cancel'
+            elif et == 'CANCEL_FAILED':
+                raise CancelFailed(sorted_messages)
+            elif et == 'EXECUTION':
+                order_status = 'open'
+                executed_value += message['size'] * message['price']
+                executed_quantity += message['size']
+            elif et == 'EXPIRE':
+                order_status = 'expire'
+        if float(executed_quantity) > 0:
+            order_status = 'partial_fill'
+        if order_quantity is not None:
+            if abs(float(executed_quantity) - float(order_quantity)) < 1e-6:
+                order_status = 'full_fill'
+        else:
+            print('Could not fetch the order quantity. Bug ahead.')
+        avg_price = float(executed_value) / float(executed_quantity) if executed_quantity != 0 else 0
+        return order_id, order_status, avg_price, executed_quantity
+
+    def run_forever(self):
         print('OrderStatusBook start.')
         while True:
             messages = self.private.message_queue.get(block=True)
             for message in messages:
-                print(f'UPDATE ORDER EVENT:', message['child_order_id'])
+                # print(f'UPDATE ORDER EVENT:', message['child_order_id'])
                 acceptance_id = message['child_order_acceptance_id']
                 self.order_status_by_parent_order_id[acceptance_id].append(message)
+                self.lock.put(acceptance_id)
+
 
 # NEW ORDER
 # {'child_order_acceptance_id': 'JRF20200513-070354-573906',
@@ -88,7 +140,6 @@ class PrivateRealtimeAPI:
         self.lock.get()
 
     def on_message(self, ws, message):
-        print(message)
         messages = json.loads(message)
         if 'id' in messages and messages['id'] == self.JSONRPC_ID_AUTH:
             if 'error' in messages:
