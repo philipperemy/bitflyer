@@ -42,6 +42,7 @@ def main():
     bitflyer_secret = os.environ['BITFLYER_SECRET']
     credentials = {'apiKey': bitflyer_key, 'secret': bitflyer_secret}
     order_passing_api = BitflyerRestAPI(credentials, timeout=5)
+    logger.info(f'Collateral: {order_passing_api.getcollateral()["collateral"]} yen.')
     order_events_api = OrderEventsAPI(bitflyer_key, bitflyer_secret)
     market_data_api = FastTickerAPI()
     price_gap_quotes = 50
