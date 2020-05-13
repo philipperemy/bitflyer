@@ -45,8 +45,7 @@ def main():
     logger.info(f'Collateral: {order_passing_api.getcollateral()["collateral"]} yen.')
     order_events_api = OrderEventsAPI(bitflyer_key, bitflyer_secret)
     market_data_api = FastTickerAPI()
-    price_gap_quotes = 50
-    time_to_wait_before_closing_the_step = 30  # seconds.
+    time_to_wait_before_closing_the_step = 10  # seconds.
 
     for i in range(1000):
         bid, ask = market_data_api.get_bbo()
@@ -56,10 +55,10 @@ def main():
         order_ids = {}
 
         def buy():
-            order_ids['buy'] = order_passing_api.create_limit_buy_order(SYMBOL, QUANTITY, bid - price_gap_quotes)
+            order_ids['buy'] = order_passing_api.create_limit_buy_order(SYMBOL, QUANTITY, bid + 1)
 
         def sell():
-            order_ids['sell'] = order_passing_api.create_limit_sell_order(SYMBOL, QUANTITY, ask + price_gap_quotes)
+            order_ids['sell'] = order_passing_api.create_limit_sell_order(SYMBOL, QUANTITY, ask - 1)
 
         bt = threading.Thread(target=buy)
         st = threading.Thread(target=sell)
