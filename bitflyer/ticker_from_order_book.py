@@ -7,7 +7,7 @@ from time import sleep
 
 import websocket
 
-from bitflyer.fast_ob_consolidation import OrderBook
+from bitflyer.order_book import OrderBook
 
 logger = getLogger(__name__)
 
