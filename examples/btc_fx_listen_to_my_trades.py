@@ -13,9 +13,9 @@ def main():
 
     for i in range(10):
         private_rest = BitflyerRestAPI(credentials=credentials, timeout=1)
-        private_rest.create_limit_buy_order('FX_BTC_JPY', 0.01, 980_000)
+        private_rest.create_market_buy_order('FX_BTC_JPY', 0.01)
         sleep(2)
-        private_rest.create_limit_sell_order('FX_BTC_JPY', 0.01, 920_000)
+        private_rest.create_market_sell_order('FX_BTC_JPY', 0.01)
         for j in range(4):
             order_id = order_status.wait_for_new_msg()
             print(order_status.fetch_order_status(order_id))

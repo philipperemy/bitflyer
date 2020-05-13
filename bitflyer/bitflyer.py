@@ -1,5 +1,6 @@
 import hmac
 import json
+import logging
 import threading
 import time
 from collections import defaultdict
@@ -22,6 +23,9 @@ class CancelFailed(Exception):
     pass
 
 
+logger = logging.getLogger(__name__)
+
+
 class OrderStatusBook:
 
     def __init__(self, key, secret):
@@ -29,7 +33,7 @@ class OrderStatusBook:
         self.private.start_and_wait_for_stream()
         self.thread = Thread(target=self.run_forever)
         self.thread.start()
-        print('OrderStatusBook - feed ready.')
+        logger.debug('OrderStatusBook - feed ready.')
         self.order_status_by_parent_order_id = defaultdict(list)
         self.lock = Queue()
 
@@ -56,7 +60,7 @@ class OrderStatusBook:
             elif et == 'CANCEL':
                 order_status = 'cancel'
             elif et == 'CANCEL_FAILED':
-                raise CancelFailed(sorted_messages)
+                order_status = 'cancel_failed'
             elif et == 'EXECUTION':
                 order_status = 'open'
                 executed_value += message['size'] * message['price']
@@ -69,12 +73,12 @@ class OrderStatusBook:
             if abs(float(executed_quantity) - float(order_quantity)) < 1e-6:
                 order_status = 'full_fill'
         else:
-            print('Could not fetch the order quantity. Bug ahead.')
+            logger.warning('Could not fetch the order quantity. Bug ahead.')
         avg_price = float(executed_value) / float(executed_quantity) if executed_quantity != 0 else 0
         return order_id, order_status, avg_price, executed_quantity
 
     def run_forever(self):
-        print('OrderStatusBook start.')
+        logger.debug('OrderStatusBook start.')
         while True:
             messages = self.private.message_queue.get(block=True)
             for message in messages:
@@ -121,15 +125,15 @@ class PrivateRealtimeAPI:
         self.lock = Queue()
 
     def on_open(self, ws):
-        print("Websocket connected")
+        logger.debug("Websocket connected")
         if len(self.private_channels) > 0:
             self.auth(ws)
 
     def on_error(self, ws, error):
-        print(error)
+        logger.warning(f'PrivateRealtimeAPI - {error}.')
 
     def on_close(self, ws):
-        print("Websocket closed")
+        logger.debug("Websocket closed")
 
     def run(self, ws):
         while True:
@@ -143,9 +147,9 @@ class PrivateRealtimeAPI:
         messages = json.loads(message)
         if 'id' in messages and messages['id'] == self.JSONRPC_ID_AUTH:
             if 'error' in messages:
-                print('auth error: {}'.format(messages["error"]))
+                logger.debug('auth error: {}'.format(messages["error"]))
             elif 'result' in messages and messages['result']:
-                print('auth success.')
+                logger.debug('auth success.')
                 params = [{'method': 'subscribe', 'params': {'channel': c}}
                           for c in self.private_channels]
                 ws.send(json.dumps(params))
@@ -217,12 +221,12 @@ class BitflyerRealtimeAPI:
 
     def start(self):
         if self._debug:
-            print(f'Connecting...')
+            logger.debug('Connecting...')
         self._thread.start()
         while self._last_msg is None:
             time.sleep(0.01)
         if self._debug:
-            print('Connected... OK')
+            logger.debug('Connected... OK')
 
     def get(self, block=True, timeout=None):
         return self._queue.get(block, timeout)
@@ -243,7 +247,7 @@ class BitflyerRealtimeAPI:
             self._best_ask = m['best_ask']
             self._best_ask_size = m['best_ask_size']
         elif c.startswith('lightning_board_snapshot'):
-            print('update')
+            logger.debug('update')
             self.bids = m['bids']
             self.asks = m['asks']
             self._best_bid = self.bids[0]['price']
@@ -251,19 +255,19 @@ class BitflyerRealtimeAPI:
             self._best_bid_size = self.bids[0]['size']
             self._best_ask_size = self.asks[0]['size']
         else:
-            print('Unknown %s' % message)
+            logger.debug('Unknown %s' % message)
 
     def _on_error(self, ws, error):
         if self._debug:
-            print(error)
+            logger.warning(f'BitflyerRealtimeAPI - {error}')
 
     def _on_close(self, ws):
         if self._debug:
-            print('disconnected streaming server.')
+            logger.debug('disconnected streaming server.')
 
     def _on_open(self, ws):
         if self._debug:
-            print('connected streaming server.')
+            logger.debug('connected streaming server.')
         output_json = json.dumps(
             {'method': 'subscribe',
              'params': {'channel': self._channel}
