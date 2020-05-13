@@ -45,7 +45,7 @@ def main():
     logger.info(f'Collateral: {order_passing_api.getcollateral()["collateral"]} yen.')
     order_events_api = OrderEventsAPI(bitflyer_key, bitflyer_secret)
     market_data_api = FastTickerAPI()
-    time_to_wait_before_closing_the_step = 10  # seconds.
+    time_to_wait_before_closing_the_step = 5  # seconds.
 
     for i in range(1000):
         bid, ask = market_data_api.get_bbo()
