@@ -5,6 +5,8 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+def fast_apply_updates(order_book, updates):
+    pass
 
 def apply_updates(order_book, updates):
     def single_update(ob, update, side):
@@ -21,11 +23,11 @@ def apply_updates(order_book, updates):
     def clean_zero(ob):
         new_bids = []
         new_asks = []
-        for bids in ob['bids']:
-            if bids['size'] != 0:
-                new_bids.append(bids)
+        for bids_ in ob['bids']:
+            if bids_['size'] != 0:
+                new_bids.append(bids_)
             else:
-                logger.debug(f'Clear bid level {bids["price"]}')
+                logger.debug(f'Clear bid level {bids_["price"]}')
         for asks in ob['asks']:
             if asks['size'] != 0:
                 new_asks.append(asks)

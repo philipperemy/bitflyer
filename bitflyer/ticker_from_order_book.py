@@ -7,7 +7,7 @@ from time import sleep
 
 import websocket
 
-from bitflyer.consolidate_ob import apply_updates
+from bitflyer.fast_ob_consolidation import OrderBook
 
 logger = getLogger(__name__)
 
@@ -25,6 +25,8 @@ class FastTicker:
         self.updates = _RealtimeAPI(channel=self.channel_updates, message_queue=self.queue)
         self.updates.run_no_wait()
 
+        self.order_book = OrderBook()
+
         self.thread = Thread(target=self._track_ticker)
         self.thread.start()
         self.bbo = None, None
@@ -32,24 +34,25 @@ class FastTicker:
         self.log_on_bbo_update = log_on_bbo_update
 
     def _track_ticker(self):
-        order_book = None
         while True:
             message = self.queue.get()
             channel = message['params']['channel']
             if channel == 'lightning_board_snapshot_FX_BTC_JPY':
-                order_book = message['params']['message']  # refresh.
+                self.order_book.snapshot_update(message['params']['message'])
             elif channel == 'lightning_board_FX_BTC_JPY':
-                if order_book is not None:  # that would mean we received an updated before the snapshot.
-                    order_book = apply_updates(order_book, [message['params']['message']])
-            if order_book is not None:
-                new_bbo = order_book['bids'][0]['price'], order_book['asks'][0]['price']
+                if self.order_book.snapshot_received:
+                    self.order_book.book_update(message['params']['message'])
+                    # mid is in in range.
+            if self.order_book.best_bid is not None:
+                new_bbo = self.order_book.best_bid, self.order_book.best_ask
                 if new_bbo != self.bbo:
                     self.bbo = new_bbo
                     self.bbo_queue.put(self.bbo)
                     if self.log_on_bbo_update:
                         bid, ask = self.bbo
                         spread = ask - bid
-                        logger.info(f'BID: {int(bid)}, ASK: {int(ask)}, SPR: {int(spread)}')
+                        r = self.order_book.updates_per_second()
+                        logger.info(f'BID: {int(bid)}, ASK: {int(ask)}, SPR: {int(spread)}, R: {r:.2f} UPS')
 
     def get_bbo(self, block=True):
         if block:
