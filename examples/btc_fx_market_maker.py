@@ -50,15 +50,17 @@ def main():
     for i in range(1000):
         bid, ask = market_data_api.get_bbo()
         logger.info('_' * 30)
-        logger.info(f'Limit BUY {QUANTITY}@{bid + 1}.')
-        logger.info(f'Limit SELL {QUANTITY}@{ask - 1}.')
+        bid_price = bid + 1
+        ask_price = ask - 1
+        logger.info(f'Limit BUY {QUANTITY}@{bid_price}.')
+        logger.info(f'Limit SELL {QUANTITY}@{ask_price}.')
         order_ids = {}
 
         def buy():
-            order_ids['buy'] = order_passing_api.create_limit_buy_order(SYMBOL, QUANTITY, bid + 1)
+            order_ids['buy'] = order_passing_api.create_limit_buy_order(SYMBOL, QUANTITY, bid_price)
 
         def sell():
-            order_ids['sell'] = order_passing_api.create_limit_sell_order(SYMBOL, QUANTITY, ask - 1)
+            order_ids['sell'] = order_passing_api.create_limit_sell_order(SYMBOL, QUANTITY, ask_price)
 
         bt = threading.Thread(target=buy)
         st = threading.Thread(target=sell)
