@@ -2,3 +2,4 @@ websocket-client==0.47.0
 pybitflyer==0.1.9
 sortedcontainers
 iso8601
+attrs

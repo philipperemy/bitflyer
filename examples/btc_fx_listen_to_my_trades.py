@@ -1,11 +1,11 @@
 import os
 from time import sleep
 
-from bitflyer.bitflyer import OrderStatusBook, BitflyerRestAPI
+from bitflyer.bitflyer import OrderEventsAPI, BitflyerRestAPI
 
 
 def main():
-    order_status = OrderStatusBook(os.environ['BITFLYER_KEY'], os.environ['BITFLYER_SECRET'])
+    order_status = OrderEventsAPI(os.environ['BITFLYER_KEY'], os.environ['BITFLYER_SECRET'])
     credentials = {
         'apiKey': os.environ['BITFLYER_KEY'],
         'secret': os.environ['BITFLYER_SECRET']

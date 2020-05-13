@@ -10,6 +10,7 @@ from queue import Queue
 from secrets import token_hex
 from threading import Thread
 
+import attr
 import iso8601 as iso8601
 import pybitflyer
 import websocket
@@ -23,10 +24,24 @@ class CancelFailed(Exception):
     pass
 
 
+@attr.s
+class OrderStatus:
+    order_id = attr.ib(type=str)
+    status = attr.ib(type=str)
+    avg_price = attr.ib(type=float)
+    executed_quantity = attr.ib(type=float)
+
+
 logger = logging.getLogger(__name__)
 
 
-class OrderStatusBook:
+class OrderEventsAPI:
+    OPEN = 'open'
+    FULLY_FILL = 'full_fill'
+    PARTIAL_FILL = 'partial_fill'
+    CANCEL = 'cancel'
+    EXPIRE = 'expire'
+    CANCEL_FAILED = 'cancel_failed'
 
     def __init__(self, key, secret):
         self.private = PrivateRealtimeAPI(key, secret)
@@ -47,35 +62,40 @@ class OrderStatusBook:
         sorted_messages = sorted(messages, key=lambda tup: iso8601.parse_date(tup['event_date']))
         executed_quantity = 0
         executed_value = 0
-        order_status = None
+        status = None
         order_quantity = None
         # https://bf-lightning-api.readme.io/docs/realtime-child-order-events
         for message in sorted_messages:
             et = message['event_type']
             if et == 'ORDER':  # new order.
                 order_quantity = message['size']
-                order_status = 'open'
+                status = self.OPEN
             elif et == 'ORDER_FAILED':
                 raise OrderFailed(sorted_messages)
             elif et == 'CANCEL':
-                order_status = 'cancel'
+                status = self.CANCEL
             elif et == 'CANCEL_FAILED':
-                order_status = 'cancel_failed'
+                status = self.CANCEL_FAILED
             elif et == 'EXECUTION':
-                order_status = 'open'
+                status = self.OPEN
                 executed_value += message['size'] * message['price']
                 executed_quantity += message['size']
             elif et == 'EXPIRE':
-                order_status = 'expire'
+                status = self.EXPIRE
         if float(executed_quantity) > 0:
-            order_status = 'partial_fill'
+            status = self.PARTIAL_FILL
         if order_quantity is not None:
             if abs(float(executed_quantity) - float(order_quantity)) < 1e-6:
-                order_status = 'full_fill'
+                status = self.FULLY_FILL
         else:
             logger.warning('Could not fetch the order quantity. Bug ahead.')
         avg_price = float(executed_value) / float(executed_quantity) if executed_quantity != 0 else 0
-        return order_id, order_status, avg_price, executed_quantity
+        return OrderStatus(
+            order_id=order_id,
+            status=status,
+            avg_price=avg_price,
+            executed_quantity=executed_quantity
+        )
 
     def run_forever(self):
         logger.debug('OrderStatusBook start.')
