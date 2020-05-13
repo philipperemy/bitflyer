@@ -124,8 +124,8 @@ class OrderBook:
         assert self.best_bid <= update["mid_price"] <= self.best_ask
         if len(self.mid_price_cond) >= 1000:
             print(np.mean(self.bid_ask_cond), np.mean(self.mid_price_cond))
-            assert np.mean(self.bid_ask_cond) > 0.95
-            assert np.mean(self.mid_price_cond) > 0.95
+            assert np.mean(self.bid_ask_cond) > 0.5
+            assert np.mean(self.mid_price_cond) > 0.5
 
 
 if __name__ == '__main__':

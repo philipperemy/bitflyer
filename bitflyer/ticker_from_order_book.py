@@ -51,8 +51,11 @@ class FastTicker:
                     if self.log_on_bbo_update:
                         bid, ask = self.bbo
                         spread = ask - bid
-                        r = self.order_book.updates_per_second()
-                        logger.info(f'BID: {int(bid)}, ASK: {int(ask)}, SPR: {int(spread)}, R: {r:.2f} UPS')
+                        r = int(self.order_book.updates_per_second())
+                        logger.info(f'BID: {int(bid)}, '
+                                    f'ASK: {int(ask)}, '
+                                    f'BID/ASK SPREAD: {str(int(spread)).zfill(4)}, '
+                                    f'R: {str(r).zfill(5)} updates/sec.')
 
     def get_bbo(self, block=True):
         if block:
