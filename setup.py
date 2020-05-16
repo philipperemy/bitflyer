@@ -11,6 +11,7 @@ setup(
     packages=['bitflyer'],
     install_requires=[
         'websocket-client==0.47.0',
-        'pybitflyer==0.1.9'
+        'pybitflyer==0.1.9',
+        'attrs'
     ]
 )
