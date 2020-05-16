@@ -1,5 +1,4 @@
 import json
-from datetime import datetime
 from logging import getLogger
 from queue import Queue
 from threading import Thread
@@ -7,12 +6,12 @@ from time import sleep
 
 import websocket
 
-from bitflyer.fast_ob_consolidation import OrderBook
+from bitflyer.order_book import OrderBook
 
 logger = getLogger(__name__)
 
 
-class FastTicker:
+class FastTickerAPI:
 
     def __init__(self, log_on_bbo_update=True):
         self.channel_snapshot = 'lightning_board_snapshot_FX_BTC_JPY'
@@ -30,8 +29,10 @@ class FastTicker:
         self.thread = Thread(target=self._track_ticker)
         self.thread.start()
         self.bbo = None, None
-        self.bbo_queue = Queue()
         self.log_on_bbo_update = log_on_bbo_update
+        # wait to receive our first BBO.
+        while self.bbo == (None, None):
+            sleep(0.001)
 
     def _track_ticker(self):
         while True:
@@ -47,7 +48,6 @@ class FastTicker:
                 new_bbo = self.order_book.best_bid, self.order_book.best_ask
                 if new_bbo != self.bbo:
                     self.bbo = new_bbo
-                    self.bbo_queue.put(self.bbo)
                     if self.log_on_bbo_update:
                         bid, ask = self.bbo
                         spread = ask - bid
@@ -58,13 +58,8 @@ class FastTicker:
                                     f'STREAM QUALITY: {self.order_book.qos:.3f}, '
                                     f'RATE: {str(r).zfill(5)} updates/sec.')
 
-    def get_bbo(self, block=True):
-        if block:
-            return self.bbo_queue.get(block=True)
-        else:
-            while self.bbo == (None, None):
-                sleep(0.001)
-            return self.bbo
+    def get_bbo(self):
+        return self.bbo
 
 
 class _RealtimeAPI:
@@ -91,7 +86,6 @@ class _RealtimeAPI:
     # when we get message
     def on_message(self, ws, message):
         j = json.loads(message)
-        j['jst_time'] = str(datetime.now())
         logger.debug(j)
         self.message_queue.put(j)
 

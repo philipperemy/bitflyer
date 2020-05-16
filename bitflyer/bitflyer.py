@@ -1,11 +1,204 @@
+import hmac
 import json
+import logging
 import threading
 import time
+from collections import defaultdict
 from datetime import datetime
+from hashlib import sha256
 from queue import Queue
+from secrets import token_hex
+from threading import Thread
 
+import attr
+import iso8601 as iso8601
 import pybitflyer
 import websocket
+
+
+class OrderFailed(Exception):
+    pass
+
+
+class CancelFailed(Exception):
+    pass
+
+
+@attr.s
+class OrderStatus:
+    order_id = attr.ib(type=str)
+    status = attr.ib(type=str)
+    avg_price = attr.ib(type=float)
+    executed_quantity = attr.ib(type=float)
+
+
+logger = logging.getLogger(__name__)
+
+
+class OrderEventsAPI:
+    OPEN = 'open'
+    FULLY_FILL = 'full_fill'
+    PARTIAL_FILL = 'partial_fill'
+    CANCEL = 'cancel'
+    EXPIRE = 'expire'
+    CANCEL_FAILED = 'cancel_failed'
+
+    def __init__(self, key, secret):
+        self.private = PrivateRealtimeAPI(key, secret)
+        self.private.start_and_wait_for_stream()
+        self.thread = Thread(target=self.run_forever)
+        self.thread.start()
+        logger.debug('OrderStatusBook - feed ready.')
+        self.order_status_by_parent_order_id = defaultdict(list)
+        self.lock = Queue()
+
+    def wait_for_new_msg(self):
+        return self.lock.get()
+
+    def fetch_order_status(self, order_id):
+        if order_id not in self.order_status_by_parent_order_id:
+            return None
+        messages = self.order_status_by_parent_order_id[order_id]
+        sorted_messages = sorted(messages, key=lambda tup: iso8601.parse_date(tup['event_date']))
+        executed_quantity = 0
+        executed_value = 0
+        status = None
+        order_quantity = None
+        # https://bf-lightning-api.readme.io/docs/realtime-child-order-events
+        for message in sorted_messages:
+            et = message['event_type']
+            if et == 'ORDER':  # new order.
+                order_quantity = message['size']
+                status = self.OPEN
+            elif et == 'ORDER_FAILED':
+                raise OrderFailed(sorted_messages)
+            elif et == 'CANCEL':
+                status = self.CANCEL
+            elif et == 'CANCEL_FAILED':
+                status = self.CANCEL_FAILED
+            elif et == 'EXECUTION':
+                status = self.OPEN
+                executed_value += message['size'] * message['price']
+                executed_quantity += message['size']
+            elif et == 'EXPIRE':
+                status = self.EXPIRE
+        if float(executed_quantity) > 0:
+            status = self.PARTIAL_FILL
+        if order_quantity is not None:
+            if abs(float(executed_quantity) - float(order_quantity)) < 1e-6:
+                status = self.FULLY_FILL
+        else:
+            logger.warning('Could not fetch the order quantity. Bug ahead.')
+        avg_price = float(executed_value) / float(executed_quantity) if executed_quantity != 0 else 0
+        return OrderStatus(
+            order_id=order_id,
+            status=status,
+            avg_price=avg_price,
+            executed_quantity=executed_quantity
+        )
+
+    def run_forever(self):
+        logger.debug('OrderStatusBook start.')
+        while True:
+            messages = self.private.message_queue.get(block=True)
+            for message in messages:
+                # print(f'UPDATE ORDER EVENT:', message['child_order_id'])
+                acceptance_id = message['child_order_acceptance_id']
+                self.order_status_by_parent_order_id[acceptance_id].append(message)
+                self.lock.put(acceptance_id)
+
+
+# NEW ORDER
+# {'child_order_acceptance_id': 'JRF20200513-070354-573906',
+#                                             'child_order_id': 'JFX20200513-070354-562409F',
+#                                             'child_order_type': 'MARKET',
+#                                             'event_date': '2020-05-13T07:03:54.8905877Z',
+#                                             'event_type': 'ORDER',
+#                                             'expire_date': '2020-06-12T07:03:54',
+#                                             'price': 0,
+#                                             'product_code': 'FX_BTC_JPY',
+#                                             'side': 'SELL',
+#                                             'size': 0.01}
+
+# EXECUTION
+# {'child_order_acceptance_id': 'JRF20200513-070354-573906',
+#                                             'child_order_id': 'JFX20200513-070354-562409F',
+#                                             'commission': 0,
+#                                             'event_date': '2020-05-13T07:03:54.8905877Z',
+#                                             'event_type': 'EXECUTION',
+#                                             'exec_id': 1739873670,
+#                                             'price': 965998,
+#                                             'product_code': 'FX_BTC_JPY',
+#                                             'sfd': 0,
+#                                             'side': 'SELL',
+#                                             'size': 0.01}]})
+
+# https://note.com/kunmosky1/n/n2a0085d71426
+class PrivateRealtimeAPI:
+    def __init__(self, key, secret):
+        self.end_point = 'wss://ws.lightstream.bitflyer.com/json-rpc'
+        self.private_channels = ['child_order_events', 'parent_order_events']
+        self.key = key
+        self.secret = secret
+        self.JSONRPC_ID_AUTH = 1
+        self.message_queue = Queue()
+        self.lock = Queue()
+
+    def on_open(self, ws):
+        logger.debug("Websocket connected")
+        if len(self.private_channels) > 0:
+            self.auth(ws)
+
+    def on_error(self, ws, error):
+        logger.warning(f'PrivateRealtimeAPI - {error}.')
+
+    def on_close(self, ws):
+        logger.debug("Websocket closed")
+
+    def run(self, ws):
+        while True:
+            ws.run_forever()
+            time.sleep(3)
+
+    def wait(self):
+        self.lock.get()
+
+    def on_message(self, ws, message):
+        messages = json.loads(message)
+        if 'id' in messages and messages['id'] == self.JSONRPC_ID_AUTH:
+            if 'error' in messages:
+                logger.debug('auth error: {}'.format(messages["error"]))
+            elif 'result' in messages and messages['result']:
+                logger.debug('auth success.')
+                params = [{'method': 'subscribe', 'params': {'channel': c}}
+                          for c in self.private_channels]
+                ws.send(json.dumps(params))
+                time.sleep(5)
+                self.lock.put('READY')
+        if 'method' not in messages or messages['method'] != 'channelMessage':
+            return
+        self.message_queue.put(messages['params']['message'])
+
+    def auth(self, ws):
+        now = int(time.time())
+        nonce = token_hex(16)
+        sign = hmac.new(self.secret.encode(
+            'utf-8'), ''.join([str(now), nonce]).encode('utf-8'), sha256).hexdigest()
+        params = {'method': 'auth', 'params': {
+            'api_key': self.key, 'timestamp': now,
+            'nonce': nonce, 'signature': sign
+        }, 'id': self.JSONRPC_ID_AUTH}
+        ws.send(json.dumps(params))
+
+    def start_and_wait_for_stream(self):
+        ws = websocket.WebSocketApp(self.end_point,
+                                    on_open=self.on_open,
+                                    on_message=self.on_message,
+                                    on_error=self.on_error,
+                                    on_close=self.on_close)
+        thread = Thread(target=self.run, args=(ws,))
+        thread.start()
+        self.wait()
 
 
 class BitflyerRealtimeAPI:
@@ -48,12 +241,12 @@ class BitflyerRealtimeAPI:
 
     def start(self):
         if self._debug:
-            print(f'Connecting...')
+            logger.debug('Connecting...')
         self._thread.start()
         while self._last_msg is None:
             time.sleep(0.01)
         if self._debug:
-            print('Connected... OK')
+            logger.debug('Connected... OK')
 
     def get(self, block=True, timeout=None):
         return self._queue.get(block, timeout)
@@ -74,7 +267,7 @@ class BitflyerRealtimeAPI:
             self._best_ask = m['best_ask']
             self._best_ask_size = m['best_ask_size']
         elif c.startswith('lightning_board_snapshot'):
-            print('update')
+            logger.debug('update')
             self.bids = m['bids']
             self.asks = m['asks']
             self._best_bid = self.bids[0]['price']
@@ -82,19 +275,19 @@ class BitflyerRealtimeAPI:
             self._best_bid_size = self.bids[0]['size']
             self._best_ask_size = self.asks[0]['size']
         else:
-            print('Unknown %s' % message)
+            logger.debug('Unknown %s' % message)
 
     def _on_error(self, ws, error):
         if self._debug:
-            print(error)
+            logger.warning(f'BitflyerRealtimeAPI - {error}')
 
     def _on_close(self, ws):
         if self._debug:
-            print('disconnected streaming server.')
+            logger.debug('disconnected streaming server.')
 
     def _on_open(self, ws):
         if self._debug:
-            print('connected streaming server.')
+            logger.debug('connected streaming server.')
         output_json = json.dumps(
             {'method': 'subscribe',
              'params': {'channel': self._channel}
