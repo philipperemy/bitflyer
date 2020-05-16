@@ -13,6 +13,7 @@ setup(
         'websocket-client==0.47.0',
         'pybitflyer==0.1.9',
         'attrs',
-        'iso8601'
+        'iso8601',
+        'sortedcontainers'
     ]
 )
