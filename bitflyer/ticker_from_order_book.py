@@ -5,7 +5,6 @@ from threading import Thread
 from time import sleep
 
 import websocket
-
 from bitflyer.order_book import OrderBook
 
 logger = getLogger(__name__)
@@ -92,6 +91,11 @@ class _RealtimeAPI:
     # when error occurs
     def on_error(self, ws, error):
         logger.error(error)
+        '''Called on fatal websocket errors. We exit on these.'''
+        print('_RealtimeAPI', self.channel)
+        print('Trying to reconnect...')
+        self.ws.run_forever()
+        raise websocket.WebSocketException(error)
 
     # when websocket closed.
     def on_close(self, ws):
