@@ -34,10 +34,10 @@ Available channels:
 api = CcxtLikeAPI(api_key=API_KEY, api_secret=API_SECRET)
 order_id = api.create_limit_sell_order(ticker=SYMBOL, quantity=0.01, price=950_000)['child_order_acceptance_id']
 for i in range(10):
-    print(api.fetch_order_status(order_id, symbol=SYMBOL))
+    print(api.fetch_order_status(order_id))
     sleep(0.1)
 print(api.cancel_order(order_id, symbol=SYMBOL))
 for i in range(10):
-    print(api.fetch_order_status(order_id, symbol=SYMBOL))
+    print(api.fetch_order_status(order_id))
     sleep(0.1)
 ```
