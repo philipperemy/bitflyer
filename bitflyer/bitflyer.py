@@ -7,13 +7,13 @@ from collections import defaultdict
 from datetime import datetime
 from hashlib import sha256
 from queue import Queue
+from secrets import token_hex
 from threading import Thread
 
 import attr
 import iso8601 as iso8601
 import pybitflyer
 import websocket
-from secrets import token_hex
 
 
 class OrderFailed(Exception):
@@ -49,15 +49,14 @@ class OrderEventsAPI:
     EXPIRE = 'expire'
     CANCEL_FAILED = 'cancel_failed'
 
-    def __init__(self, key, secret, debug=False):
+    def __init__(self, key, secret):
         self.private = PrivateRealtimeAPI(key, secret)
         self.private.start_and_wait_for_stream()
+        self.order_status_by_parent_order_id = defaultdict(list)
+        self.lock = Queue()
         self.thread = Thread(target=self.run_forever)
         self.thread.start()
         logger.debug('OrderStatusBook - feed ready.')
-        self.order_status_by_parent_order_id = defaultdict(list)
-        self.lock = Queue()
-        self.debug = debug
 
     def wait_for_new_msg(self):
         return self.lock.get()
@@ -109,7 +108,6 @@ class OrderEventsAPI:
         while True:
             messages = self.private.message_queue.get(block=True)
             for message in messages:
-                logger.debug(f'UPDATE ORDER EVENT: {message}')
                 acceptance_id = message['child_order_acceptance_id']
                 self.order_status_by_parent_order_id[acceptance_id].append(message)
                 self.lock.put(acceptance_id)
