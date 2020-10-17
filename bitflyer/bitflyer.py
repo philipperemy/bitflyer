@@ -30,12 +30,23 @@ class OrderStatus:
     status = attr.ib(type=str)
     avg_price = attr.ib(type=float)
     executed_quantity = attr.ib(type=float)
+    outstanding_size = attr.ib(type=float)
 
     def __str__(self):
         return f'Order status (id={self.order_id}, ' \
                f'status={self.status}, ' \
                f'avg_px={round(self.avg_price * 10000) / 10000}, ' \
-               f'execQty={round(self.executed_quantity * 10000) / 10000})'
+               f'execQty={round(self.executed_quantity * 10000) / 10000}), ' \
+               f'outstandingSize={round(self.outstanding_size * 10000) / 10000})'
+
+    def json(self):
+        return json.dumps({
+            'order_id': self.order_id,
+            'status': self.status,
+            'avg_price': self.avg_price,
+            'executed_quantity': self.executed_quantity,
+            'outstanding_size': self.outstanding_size
+        })
 
 
 logger = logging.getLogger(__name__)
