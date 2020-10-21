@@ -40,7 +40,7 @@ class OrderStatus:
         return f'Order status (id={self.order_id}, ' \
                f'status={self.status}, ' \
                f'avg_px={round(self.avg_price * 10000) / 10000}, ' \
-               f'execQty={round(self.executed_quantity * 10000) / 10000}), ' \
+               f'execQty={round(self.executed_quantity * 10000) / 10000}, ' \
                f'outstandingSize={os})'
 
     def json(self):
