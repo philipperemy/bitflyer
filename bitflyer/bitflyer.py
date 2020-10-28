@@ -34,13 +34,13 @@ class OrderStatus:
 
     def __str__(self):
         if self.outstanding_size is not None:
-            os = round(self.outstanding_size * 10000) / 10000
+            os = round(self.outstanding_size * 100000) / 100000
         else:
             os = 'N/A'
         return f'Order status (id={self.order_id}, ' \
                f'status={self.status}, ' \
-               f'avg_px={round(self.avg_price * 10000) / 10000}, ' \
-               f'execQty={round(self.executed_quantity * 10000) / 10000}, ' \
+               f'avg_px={round(self.avg_price * 100000) / 100000}, ' \
+               f'execQty={round(self.executed_quantity * 100000) / 100000}, ' \
                f'outstandingSize={os})'
 
     def json(self):
