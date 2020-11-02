@@ -85,6 +85,7 @@ class OrderEventsAPI:
         executed_value = 0
         status = None
         order_quantity = None
+        outstanding_size = None
         # https://bf-lightning-api.readme.io/docs/realtime-child-order-events
         for message in sorted_messages:
             et = message['event_type']
@@ -101,6 +102,7 @@ class OrderEventsAPI:
                 status = self.OPEN
                 executed_value += message['size'] * message['price']
                 executed_quantity += message['size']
+                outstanding_size = message['outstanding_size']
             elif et == 'EXPIRE':
                 status = self.EXPIRE
         if float(executed_quantity) > 0:
@@ -115,7 +117,8 @@ class OrderEventsAPI:
             order_id=order_id,
             status=status,
             avg_price=avg_price,
-            executed_quantity=executed_quantity
+            executed_quantity=executed_quantity,
+            outstanding_size=outstanding_size
         )
 
     def run_forever(self):
