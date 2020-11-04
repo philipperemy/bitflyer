@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='bitflyer-rt',
-    version='2.10',
+    version='2.11',
     python_requires='>=3.6',
     description='Bitflyer Realtime and Rest API',
     author='Philippe Remy',
@@ -13,8 +13,10 @@ setup(
     install_requires=[
         'websocket-client==0.47.0',
         'pybitflyer==0.1.9',
+        'python-socketio[client]',
         'attrs',
         'iso8601',
-        'sortedcontainers'
+        'sortedcontainers',
+        'numpy'
     ]
 )

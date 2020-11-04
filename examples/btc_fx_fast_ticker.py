@@ -2,13 +2,12 @@ import logging
 import sys
 from time import sleep
 
-from bitflyer.ticker_from_order_book import FastTickerAPI
+from bitflyer.rpc_ticker import FastTickerAPI
 
 
 def main():
     logging.basicConfig(format='%(asctime)12s - %(levelname)s - %(message)s', level=logging.INFO, stream=sys.stdout)
-    ft = FastTickerAPI()
-    # ft.get_bbo()
+    FastTickerAPI()
     sleep(10000000)
 
 

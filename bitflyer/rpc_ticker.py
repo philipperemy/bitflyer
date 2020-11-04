@@ -5,6 +5,7 @@ from threading import Thread
 from time import sleep
 
 import websocket
+
 from bitflyer.order_book import OrderBook
 
 logger = getLogger(__name__)

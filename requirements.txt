@@ -3,3 +3,5 @@ pybitflyer==0.1.9
 sortedcontainers
 iso8601
 attrs
+numpy
+python-socketio[client]
