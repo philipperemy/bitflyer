@@ -13,7 +13,7 @@ setup(
     install_requires=[
         'websocket-client==0.47.0',
         'pybitflyer==0.1.9',
-        'python-socketio[client]',
+        'python-socketio[client]==4.6.0',
         'attrs',
         'iso8601',
         'sortedcontainers',
