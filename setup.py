@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='bitflyer-rt',
-    version='2.15',
+    version='2.16',
     python_requires='>=3.6',
     description='Bitflyer Realtime and Rest API',
     author='Philippe Remy',

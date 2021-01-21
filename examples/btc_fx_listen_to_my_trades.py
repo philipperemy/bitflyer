@@ -16,8 +16,7 @@ def main():
                                                     params={'minute_to_expire': 1})
         print(f'posted order {order}.')
         while True:
-            order_id = order_status.wait_for_new_msg()
-            print(order_status.fetch_order_status(order_id))
+            print(order_status.message_queue.get())
 
 
 if __name__ == '__main__':
