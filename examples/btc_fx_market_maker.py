@@ -4,7 +4,7 @@ import sys
 import threading
 from time import sleep, time
 
-from bitflyer.ord_status import OrderEventsAPI
+from bitflyer.ord_status import OrderEvents
 from bitflyer.trading import BitflyerRestAPI
 from build.lib.bitflyer.rpc_ticker import FastTickerAPI
 
@@ -44,7 +44,7 @@ def main():
     credentials = {'apiKey': bitflyer_key, 'secret': bitflyer_secret}
     order_passing_api = BitflyerRestAPI(credentials, timeout=5)
     logger.info(f'Collateral: {order_passing_api.getcollateral()["collateral"]} yen.')
-    order_events_api = OrderEventsAPI(bitflyer_key, bitflyer_secret)
+    order_events_api = OrderEvents(bitflyer_key, bitflyer_secret)
     market_data_api = FastTickerAPI()
     time_to_wait_before_closing_the_step = 5  # seconds.
 

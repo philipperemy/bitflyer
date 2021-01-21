@@ -54,7 +54,7 @@ class OrderStatus:
         })
 
 
-class OrderEventsAPI:
+class OrderEvents:
 
     def __init__(self, key, secret):
         self.message_queue = Queue()
