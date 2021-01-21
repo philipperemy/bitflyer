@@ -4,8 +4,9 @@ import sys
 import threading
 from time import sleep, time
 
-from bitflyer.bitflyer import OrderEventsAPI, BitflyerRestAPI
-from bitflyer.ticker_from_order_book import FastTickerAPI
+from bitflyer.ord_status import OrderEventsAPI
+from bitflyer.trading import BitflyerRestAPI
+from build.lib.bitflyer.rpc_ticker import FastTickerAPI
 
 SYMBOL = 'FX_BTC_JPY'
 QUANTITY = 0.01

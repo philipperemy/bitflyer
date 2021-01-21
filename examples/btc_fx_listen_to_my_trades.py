@@ -1,26 +1,23 @@
 import os
-from time import sleep
 
-from bitflyer.bitflyer import OrderEventsAPI, BitflyerRestAPI
+from bitflyer.ord_status import OrderEventsAPI
+from bitflyer.trading import BitflyerRestAPI
 
 
 def main():
-    order_status = OrderEventsAPI(os.environ['BITFLYER_KEY'], os.environ['BITFLYER_SECRET'])
-    credentials = {
-        'apiKey': os.environ['BITFLYER_KEY'],
-        'secret': os.environ['BITFLYER_SECRET']
-    }
+    key = os.environ['BITFLYER_KEY']
+    secret = os.environ['BITFLYER_SECRET']
 
+    order_status = OrderEventsAPI(key, secret)
     for i in range(10):
-        private_rest = BitflyerRestAPI(credentials=credentials, timeout=1)
-        private_rest.create_market_buy_order('FX_BTC_JPY', 0.01)
-        sleep(2)
-        private_rest.create_market_sell_order('FX_BTC_JPY', 0.01)
-        for j in range(4):
+        private_rest = BitflyerRestAPI(credentials={'apiKey': key, 'secret': secret}, timeout=1)
+        best_bid = private_rest.ticker(ticker='FX_BTC_JPY')['best_bid']
+        order = private_rest.create_limit_buy_order('FX_BTC_JPY', 0.01, price=best_bid - 100_000,
+                                                    params={'minute_to_expire': 1})
+        print(f'posted order {order}.')
+        while True:
             order_id = order_status.wait_for_new_msg()
             print(order_status.fetch_order_status(order_id))
-        print('Next step in 10 seconds.')
-        sleep(10)
 
 
 if __name__ == '__main__':

@@ -1,6 +1,6 @@
 import time
 
-from bitflyer.socketio_ticker import SocketIOFastTickerAPI
+from bitflyer.ticker import SocketIOFastTickerAPI
 
 
 def main():
