@@ -62,8 +62,7 @@ class OrderEventsRPC:  # works the best.
         ws = ClientRPC(key, secret)
 
         def on_ord_status(messages):
-            for message in messages:
-                self.message_queue.put(message)
+            self.message_queue.put(messages)
 
         ws.register_channels(['child_order_events', 'parent_order_events'])
         ws.register_handler(on_ord_status)
@@ -78,8 +77,7 @@ class OrderEventsSocketIO:  # does not seem to work well.
         ws.start_auth()
 
         def on_ord_status(messages):
-            for message in messages:
-                self.message_queue.put(message)
+            self.message_queue.put(messages)
 
         for private_channel in ['child_order_events', 'parent_order_events']:
             ws.register_handler(channel=private_channel, handler=on_ord_status)
