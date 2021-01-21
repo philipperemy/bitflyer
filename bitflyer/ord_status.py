@@ -5,6 +5,7 @@ from queue import Queue
 import attr
 from iso8601 import iso8601
 
+from bitflyer.rpc import ClientRPC
 from bitflyer.socketio import WebSocketIO
 
 logger = logging.getLogger(__name__)
@@ -54,7 +55,22 @@ class OrderStatus:
         })
 
 
-class OrderEvents:
+class OrderEventsRPC:  # works the best.
+
+    def __init__(self, key, secret):
+        self.message_queue = Queue()
+        ws = ClientRPC(key, secret)
+
+        def on_ord_status(messages):
+            for message in messages:
+                self.message_queue.put(message)
+
+        ws.register_channels(['child_order_events', 'parent_order_events'])
+        ws.register_handler(on_ord_status)
+        ws.start_and_wait_for_stream()
+
+
+class OrderEventsSocketIO:  # does not seem to work well.
 
     def __init__(self, key, secret):
         self.message_queue = Queue()

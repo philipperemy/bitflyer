@@ -1,6 +1,6 @@
 import os
 
-from bitflyer.ord_status import OrderEvents
+from bitflyer.ord_status import OrderEventsRPC
 from bitflyer.trading import BitflyerRestAPI
 
 
@@ -8,7 +8,7 @@ def main():
     key = os.environ['BITFLYER_KEY']
     secret = os.environ['BITFLYER_SECRET']
 
-    order_status = OrderEvents(key, secret)
+    order_status = OrderEventsRPC(key, secret)
     for i in range(10):
         private_rest = BitflyerRestAPI(credentials={'apiKey': key, 'secret': secret}, timeout=1)
         best_bid = private_rest.ticker(ticker='FX_BTC_JPY')['best_bid']

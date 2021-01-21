@@ -4,9 +4,9 @@ import sys
 import threading
 from time import sleep, time
 
-from bitflyer.ord_status import OrderEvents
+from bitflyer.ord_status import OrderEventsSocketIO, OrderEventsRPC, OrderStatus
+from bitflyer.ticker import SocketIOFastTickerAPI
 from bitflyer.trading import BitflyerRestAPI
-from build.lib.bitflyer.rpc_ticker import FastTickerAPI
 
 SYMBOL = 'FX_BTC_JPY'
 QUANTITY = 0.01
@@ -44,8 +44,8 @@ def main():
     credentials = {'apiKey': bitflyer_key, 'secret': bitflyer_secret}
     order_passing_api = BitflyerRestAPI(credentials, timeout=5)
     logger.info(f'Collateral: {order_passing_api.getcollateral()["collateral"]} yen.')
-    order_events_api = OrderEvents(bitflyer_key, bitflyer_secret)
-    market_data_api = FastTickerAPI()
+    order_events_api = OrderEventsRPC(bitflyer_key, bitflyer_secret)
+    market_data_api = SocketIOFastTickerAPI()
     time_to_wait_before_closing_the_step = 5  # seconds.
 
     for i in range(1000):
@@ -80,20 +80,20 @@ def main():
                 continue
             if (time() - start_ref) > time_to_wait_before_closing_the_step:
 
-                if sell_order_info.status == order_events_api.FULLY_FILL and \
-                        buy_order_info.status != order_events_api.FULLY_FILL:
+                if sell_order_info.status == OrderStatus.FULLY_FILL and \
+                        buy_order_info.status != OrderStatus.FULLY_FILL:
                     sadly_close_order(order_passing_api, order_events_api, buy_order_info.order_id, 'Buy',
                                       order_passing_api.create_market_buy_order)
                     break
 
-                if buy_order_info.status == order_events_api.FULLY_FILL and \
-                        sell_order_info.status != order_events_api.FULLY_FILL:
+                if buy_order_info.status == OrderStatus.FULLY_FILL and \
+                        sell_order_info.status != OrderStatus.FULLY_FILL:
                     sadly_close_order(order_passing_api, order_events_api, sell_order_info.order_id, 'Sell',
                                       order_passing_api.create_market_sell_order)
                     break
 
-            if buy_order_info.status == order_events_api.FULLY_FILL and \
-                    sell_order_info.status == order_events_api.FULLY_FILL:
+            if buy_order_info.status == OrderStatus.FULLY_FILL and \
+                    sell_order_info.status == OrderStatus.FULLY_FILL:
                 logger.info('All executed.')
                 break
 
