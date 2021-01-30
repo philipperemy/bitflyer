@@ -33,6 +33,7 @@ class OrderStatus:
     avg_price = attr.ib(type=float)
     executed_quantity = attr.ib(type=float)
     outstanding_size = attr.ib(type=float)
+    event_date = attr.ib(type=str)
 
     def __str__(self):
         if self.outstanding_size is not None:
@@ -41,6 +42,7 @@ class OrderStatus:
             os = 'N/A'
         return f'Order status (id={self.order_id}, ' \
                f'status={self.status}, ' \
+               f'event_date={self.event_date}, ' \
                f'avg_px={round(self.avg_price * 100000) / 100000}, ' \
                f'execQty={round(self.executed_quantity * 100000) / 100000}, ' \
                f'outstandingSize={os})'
@@ -49,6 +51,7 @@ class OrderStatus:
         return json.dumps({
             'order_id': self.order_id,
             'status': self.status,
+            'event_date': self.event_date,
             'avg_price': self.avg_price,
             'executed_quantity': self.executed_quantity,
             'outstanding_size': self.outstanding_size
@@ -98,6 +101,7 @@ def fetch_order_status(order_status_by_parent_order_id: dict, order_id: str):
     # https://bf-lightning-api.readme.io/docs/realtime-child-order-events
     for message in sorted_messages:
         et = message['event_type']
+        ed = message['event_date']
         if et == 'ORDER':  # new order.
             order_quantity = message['size']
             outstanding_size = order_quantity  # new order.
@@ -130,6 +134,7 @@ def fetch_order_status(order_status_by_parent_order_id: dict, order_id: str):
     avg_price = float(executed_value) / float(executed_quantity) if executed_quantity != 0 else 0
     return OrderStatus(
         order_id=order_id,
+        event_date=ed,
         status=status,
         avg_price=avg_price,
         executed_quantity=executed_quantity,
