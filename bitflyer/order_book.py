@@ -34,9 +34,9 @@ class OrderBook:
         self.bid_order_book = SortedDict()
         self.ask_order_book = SortedDict()
         self.snapshot_received = False
-        self.cond_history = 1000
-        self.mid_price_cond = deque(maxlen=self.cond_history)
-        self.bid_ask_cond = deque(maxlen=self.cond_history)
+        self._cond_len = 1000
+        self._mid_price_cond = deque(maxlen=self._cond_len)
+        self._bid_ask_cond = deque(maxlen=self._cond_len)
         self.best_adjusted_bid = None
         self.best_adjusted_ask = None
         self.mid_price = None
@@ -54,7 +54,7 @@ class OrderBook:
                 if val[1] != 0:
                     return val[0]
                 i -= 1
-        except Exception:
+        except IndexError:
             return None
 
     @property
@@ -68,11 +68,40 @@ class OrderBook:
                 if val[1] != 0:
                     return val[0]
                 i += 1
-        except Exception:
+        except IndexError:
             return None
 
     def updates_per_second(self):
         return self.ups.rate
+
+    def liquidity_for(self, quantity: float):
+        if not self.snapshot_received:
+            return 0, 0, 0, 0
+        bid_total_value = 0
+        bid_total_quantity = 0
+        level_price = 0
+        for i in range(-1, -len(self.bid_order_book), -1):
+            level_price, liquidity = self.bid_order_book.peekitem(i)
+            if bid_total_quantity < quantity:
+                bid_total_value += level_price * liquidity
+                bid_total_quantity += liquidity
+            else:
+                break
+        bid_average_price = int(bid_total_value / bid_total_quantity)
+        bid_lowest_price = level_price
+
+        ask_total_value = 0
+        ask_total_quantity = 0
+        for i in range(len(self.ask_order_book)):
+            level_price, liquidity = self.ask_order_book.peekitem(i)
+            if ask_total_quantity < quantity:
+                ask_total_value += level_price * liquidity
+                ask_total_quantity += liquidity
+            else:
+                break
+        ask_average_price = int(ask_total_value / ask_total_quantity)
+        ask_highest_price = level_price
+        return bid_average_price, ask_average_price, bid_lowest_price, ask_highest_price
 
     def snapshot_update(self, snapshot):
         self.ups.count()
@@ -110,8 +139,8 @@ class OrderBook:
         for ask in update['asks']:
             self._single_book_update(ask['price'], ask['size'], is_bid=False)
         # debug = f'{self.best_bid}, {update["mid_price"]}, {self.best_ask}'
-        self.mid_price_cond.append(self.best_bid <= update["mid_price"] <= self.best_ask)
-        self.bid_ask_cond.append(self.best_bid <= self.best_ask)
+        self._mid_price_cond.append(self.best_bid <= update["mid_price"] <= self.best_ask)
+        self._bid_ask_cond.append(self.best_bid <= self.best_ask)
         # It should never happen in practice.
         # But sometimes the messages don't arrive sequentially.
         if self.best_bid >= update["mid_price"]:
@@ -124,11 +153,19 @@ class OrderBook:
             self.best_adjusted_ask = update["mid_price"] + 1
         assert self.best_bid < self.best_ask
         assert self.best_bid <= update["mid_price"] <= self.best_ask
-        if len(self.mid_price_cond) == self.cond_history:
-            self.qos = (0.5 * np.mean(self.bid_ask_cond) + 0.5 * np.mean(self.mid_price_cond))
+        if len(self._mid_price_cond) == self._cond_len:
+            self.qos = (0.5 * np.mean(self._bid_ask_cond) + 0.5 * np.mean(self._mid_price_cond))
 
 
 if __name__ == '__main__':
     ob = OrderBook()
     ob.snapshot_update('../ob.json')
-    ob.book_update('../update.json')
+    # ob.book_update('../update.json')
+    print(ob.best_bid, ob.best_ask)
+    print(ob.liquidity_for(0.01))
+    print(ob.liquidity_for(1))
+    print(ob.liquidity_for(3))
+    print(ob.liquidity_for(10))
+    print(ob.liquidity_for(25))
+    print(ob.liquidity_for(60))
+    print(ob.liquidity_for(100))
