@@ -1,6 +1,4 @@
-import json
 import logging
-import os
 from collections import deque
 from time import time
 
@@ -30,7 +28,7 @@ class NumUpdatesPerSeconds:
 
 class OrderBook:
 
-    def __init__(self):
+    def __init__(self, enable_qos=True, enable_statistics=True):
         self.bid_order_book = SortedDict()
         self.ask_order_book = SortedDict()
         self.snapshot_received = False
@@ -42,6 +40,8 @@ class OrderBook:
         self.mid_price = None
         self.qos = 1.0  # 1.0: perfect synchronised stream, <0.9 degraded stream.
         self.ups = NumUpdatesPerSeconds()
+        self.enable_qos = enable_qos
+        self.enable_statistics = enable_statistics
 
     @property
     def best_bid(self):
@@ -104,13 +104,10 @@ class OrderBook:
         return bid_average_price, ask_average_price, bid_lowest_price, ask_highest_price
 
     def snapshot_update(self, snapshot):
-        self.ups.count()
+        if self.enable_statistics:
+            self.ups.count()
         self.best_adjusted_bid = None
         self.best_adjusted_ask = None
-
-        if isinstance(snapshot, str) and os.path.isfile(snapshot):
-            with open(snapshot, 'r') as r:
-                snapshot = json.load(r)
         self.mid_price = snapshot['mid_price']
         self.bid_order_book = SortedDict()
         self.ask_order_book = SortedDict()
@@ -122,25 +119,25 @@ class OrderBook:
         self.snapshot_received = True
 
     def _single_book_update(self, price, size, is_bid=True):
-        self.ups.count()
+        if self.enable_statistics:
+            self.ups.count()
         price = int(price)
         book = self.bid_order_book if is_bid else self.ask_order_book
         book[price] = size
 
-    def book_update(self, update):
+    def book_update(self, update: dict):
         self.best_adjusted_bid = None
         self.best_adjusted_ask = None
-        if isinstance(update, str) and os.path.isfile(update):
-            with open(update, 'r') as r:
-                update = json.load(r)
         self.mid_price = update['mid_price']
         for bid in update['bids']:
             self._single_book_update(bid['price'], bid['size'], is_bid=True)
         for ask in update['asks']:
             self._single_book_update(ask['price'], ask['size'], is_bid=False)
-        # debug = f'{self.best_bid}, {update["mid_price"]}, {self.best_ask}'
-        self._mid_price_cond.append(self.best_bid <= update["mid_price"] <= self.best_ask)
-        self._bid_ask_cond.append(self.best_bid <= self.best_ask)
+
+        if self.enable_qos:
+            self._mid_price_cond.append(self.best_bid <= update["mid_price"] <= self.best_ask)
+            self._bid_ask_cond.append(self.best_bid <= self.best_ask)
+
         # It should never happen in practice.
         # But sometimes the messages don't arrive sequentially.
         if self.best_bid >= update["mid_price"]:
@@ -153,12 +150,12 @@ class OrderBook:
             self.best_adjusted_ask = update["mid_price"] + 1
         assert self.best_bid < self.best_ask
         assert self.best_bid <= update["mid_price"] <= self.best_ask
-        if len(self._mid_price_cond) == self._cond_len:
+        if self.enable_qos and len(self._mid_price_cond) == self._cond_len:
             self.qos = (0.5 * np.mean(self._bid_ask_cond) + 0.5 * np.mean(self._mid_price_cond))
 
 
 if __name__ == '__main__':
-    ob = OrderBook()
+    ob = OrderBook(enable_qos=False, enable_statistics=False)
     ob.snapshot_update('../ob.json')
     # ob.book_update('../update.json')
     print(ob.best_bid, ob.best_ask)
