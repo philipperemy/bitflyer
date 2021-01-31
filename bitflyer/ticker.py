@@ -14,7 +14,7 @@ SECRET = ''
 class SocketIOFastTickerAPI:
 
     def __init__(self):
-        self.order_book = OrderBook()
+        self.order_book = OrderBook(enable_qos=False, enable_statistics=False)
         self.bbo = None, None
         self.updater = 'TICKER'
 
